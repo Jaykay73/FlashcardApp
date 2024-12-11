@@ -67,9 +67,6 @@ python flashcard_app.py
 4. **Delete Flashcards**: 
    - You can delete flashcards individually or clear all saved flashcards.
 
-## Screenshots
-
-
 
 ## Contributing
 
