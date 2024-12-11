@@ -84,7 +84,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Note:
 
 Make sure to replace the Gemini API key with your personal key to use the AI functionality. If you don’t have an API key, visit the official [Gemini API documentation](https://developers.google.com/generative-ai) to get one.
-
-```
-
-This `README.md` file provides an overview of the app, installation instructions, usage details, and contribution guidelines. Be sure to update the GitHub link and include screenshots if desired.p
