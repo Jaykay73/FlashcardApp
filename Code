@@ -1,17 +1,21 @@
-import tkinter as tk
-from tkinter import messagebox
+import sys
+import os
 import json
 import random
-import os
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QInputDialog, QMessageBox
+)
+from PyQt5.QtCore import Qt
 import google.generativeai as genai
 
-# Configure Gemini API
-API_KEY = "API KEY"  # Replace with your Gemini API key
+# Configuring Gemini API
+API_KEY = "AIzaSyB3CTbV5xW_jkWMHpt_1hGYlw31QCZqnlI" 
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 # File to store flashcards
 FLASHCARD_FILE = "flashcards.json"
+
 
 def load_flashcards():
     """Load flashcards from a JSON file."""
@@ -20,35 +24,24 @@ def load_flashcards():
             return json.load(f)
     return {}
 
+
 def save_flashcards(flashcards):
     """Save flashcards to a JSON file."""
     with open(FLASHCARD_FILE, "w") as f:
         json.dump(flashcards, f, indent=4)
 
+
 def generate_flashcards_with_gemini(topic, num_questions):
     """
     Generate flashcards using Gemini API.
-    :param topic: The topic to generate flashcards about.
-    :param num_questions: The number of flashcards to generate.
-    :return: A dictionary of question-answer pairs.
     """
     try:
         prompt = f"Generate {num_questions} flashcard-style question-answer pairs on the topic '{topic}'. Format it as 'Q: <question> A: <answer>'."
         response = model.generate_content(prompt)
 
-        # Print the raw response to debug
-        print(f"Raw response from Gemini: {response.text}")
-
-        # Check if response contains valid text
-        if not response.text:
-            raise ValueError("No response text returned from Gemini API.")
-        
-        flashcards_text = response.text
         flashcards = {}
-
-        # Split the response into question-answer pairs
-        q_and_a_pairs = flashcards_text.split("Q:")
-        for pair in q_and_a_pairs[1:]:  # Ignore the first empty string (before the first "Q:")
+        q_and_a_pairs = response.text.split("Q:")
+        for pair in q_and_a_pairs[1:]:
             question_answer = pair.split("A:")
             if len(question_answer) == 2:
                 question = question_answer[0].strip()
@@ -56,129 +49,107 @@ def generate_flashcards_with_gemini(topic, num_questions):
                 if question and answer:
                     flashcards[question] = answer
 
-        if not flashcards:
-            raise ValueError("No flashcards were generated. Check the prompt or the response format.")
-
         return flashcards
     except Exception as e:
-        print(f"Error generating flashcards with Gemini: {e}")
+        print(f"Error: {e}")
         return {}
 
-class FlashcardApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Modern Flashcard App")
+
+class FlashcardApp(QWidget):
+    def __init__(self):
+        super().__init__()
         self.flashcards = load_flashcards()
         self.current_flashcard = None
+        self.flashcards_list = []
 
-        # Set modern font and background
-        self.root.configure(bg="#f0f0f0")
+        self.setWindowTitle("Flashcard App")
+        self.setGeometry(100, 100, 400, 300)
 
-        # Main menu buttons
-        self.menu_frame = tk.Frame(root, bg="#f0f0f0")
-        self.menu_frame.pack(pady=20)
+        # Main layout
+        self.layout = QVBoxLayout()
+        self.menu_layout = QVBoxLayout()
 
-        tk.Label(self.menu_frame, text="Flashcard App", font=("Helvetica", 20), bg="#f0f0f0").pack(pady=10)
-        self.create_button(self.menu_frame, "Add Flashcard", self.open_add_flashcard)
-        self.create_button(self.menu_frame, "Review Flashcards", self.start_review)
-        self.create_button(self.menu_frame, "Generate Flashcards", self.open_generate_flashcards)
-        self.create_button(self.menu_frame, "Exit", root.quit)
+        # Menu UI
+        self.menu_label = QLabel("Flashcard App", self)
+        self.menu_label.setAlignment(Qt.AlignCenter)
+        self.menu_layout.addWidget(self.menu_label)
 
-        # Add Flashcard Screen
-        self.add_frame = tk.Frame(root, bg="#f0f0f0")
-        tk.Label(self.add_frame, text="Add a New Flashcard", font=("Helvetica", 16), bg="#f0f0f0").pack(pady=10)
+        self.add_menu_button("Add Flashcard", self.open_add_flashcard)
+        self.add_menu_button("Review Flashcards", self.start_review)
+        self.add_menu_button("Generate Flashcards", self.open_generate_flashcards)
+        self.add_menu_button("Delete All Flashcards", self.delete_all_flashcards)
+        self.add_menu_button("Exit", self.close)
 
-        tk.Label(self.add_frame, text="Question:", font=("Helvetica", 12), bg="#f0f0f0").pack(anchor="w", padx=20)
-        self.question_entry = tk.Entry(self.add_frame, width=40, font=("Helvetica", 12))
-        self.question_entry.pack(pady=5)
+        self.layout.addLayout(self.menu_layout)
+        self.setLayout(self.layout)
 
-        tk.Label(self.add_frame, text="Answer:", font=("Helvetica", 12), bg="#f0f0f0").pack(anchor="w", padx=20)
-        self.answer_entry = tk.Entry(self.add_frame, width=40, font=("Helvetica", 12))
-        self.answer_entry.pack(pady=5)
-
-        self.create_button(self.add_frame, "Save", self.save_flashcard)
-        self.create_button(self.add_frame, "Back", self.back_to_menu)
-
-        # Review Flashcards Screen
-        self.review_frame = tk.Frame(root, bg="#f0f0f0")
-
-        self.question_label = tk.Label(self.review_frame, text="", font=("Helvetica", 14), wraplength=400, bg="#f0f0f0")
-        self.question_label.pack(pady=10)
-
-        self.create_button(self.review_frame, "Show Answer", self.show_answer)
-        self.answer_label = tk.Label(self.review_frame, text="", font=("Helvetica", 12), wraplength=400, bg="#f0f0f0")
-        self.answer_label.pack(pady=10)
-
-        self.create_button(self.review_frame, "Next Flashcard", self.next_flashcard)
-        self.create_button(self.review_frame, "Delete Flashcard", self.delete_flashcard)
-        self.create_button(self.review_frame, "Delete All Flashcards", self.delete_all_flashcards)
-        self.create_button(self.review_frame, "Back", self.back_to_menu)
-
-        # Generate Flashcards Screen
-        self.generate_frame = tk.Frame(root, bg="#f0f0f0")
-        tk.Label(self.generate_frame, text="Generate Flashcards", font=("Helvetica", 16), bg="#f0f0f0").pack(pady=10)
-
-        tk.Label(self.generate_frame, text="Topic:", font=("Helvetica", 12), bg="#f0f0f0").pack(anchor="w", padx=20)
-        self.topic_entry = tk.Entry(self.generate_frame, width=40, font=("Helvetica", 12))
-        self.topic_entry.pack(pady=5)
-
-        tk.Label(self.generate_frame, text="Number of Questions:", font=("Helvetica", 12), bg="#f0f0f0").pack(anchor="w", padx=20)
-        self.num_questions_entry = tk.Entry(self.generate_frame, width=10, font=("Helvetica", 12))
-        self.num_questions_entry.pack(pady=5)
-
-        self.create_button(self.generate_frame, "Generate", self.generate_flashcards_from_gemini)
-        self.create_button(self.generate_frame, "Back", self.back_to_menu)
-
-    def create_button(self, parent, text, command):
-        """Create a styled button with custom appearance."""
-        button = tk.Button(parent, text=text, command=command, font=("Helvetica", 12), bg="#007BFF", fg="white", relief="flat", width=20, height=2)
-        button.pack(pady=10)
+    def add_menu_button(self, label, action):
+        """Add a button to the main menu."""
+        button = QPushButton(label, self)
+        button.clicked.connect(action)
+        self.menu_layout.addWidget(button)
 
     def open_add_flashcard(self):
-        """Switch to the Add Flashcard screen."""
-        self.menu_frame.pack_forget()
-        self.add_frame.pack()
-
-    def save_flashcard(self):
-        """Save a new flashcard."""
-        question = self.question_entry.get().strip()
-        answer = self.answer_entry.get().strip()
-
-        if question and answer:
-            self.flashcards[question] = answer
-            save_flashcards(self.flashcards)
-            messagebox.showinfo("Success", "Flashcard saved!")
-            self.question_entry.delete(0, tk.END)
-            self.answer_entry.delete(0, tk.END)
-        else:
-            messagebox.showerror("Error", "Both question and answer are required.")
+        """Open a dialog to add a flashcard."""
+        question, ok = QInputDialog.getText(self, "Add Flashcard", "Enter the question:")
+        if ok and question.strip():
+            answer, ok = QInputDialog.getText(self, "Add Flashcard", "Enter the answer:")
+            if ok and answer.strip():
+                self.flashcards[question.strip()] = answer.strip()
+                save_flashcards(self.flashcards)
+                QMessageBox.information(self, "Success", "Flashcard added successfully!")
 
     def start_review(self):
-        """Switch to the Review Flashcards screen."""
+        """Start reviewing flashcards."""
         if not self.flashcards:
-            messagebox.showinfo("Info", "No flashcards to review.")
+            QMessageBox.information(self, "No Flashcards", "No flashcards to review.")
             return
-        self.menu_frame.pack_forget()
-        self.review_frame.pack()
+
         self.flashcards_list = list(self.flashcards.items())
         random.shuffle(self.flashcards_list)
         self.current_flashcard = None
-        self.next_flashcard()
+        self.show_next_flashcard()
 
-    def next_flashcard(self):
+    def show_next_flashcard(self):
         """Show the next flashcard."""
-        if self.flashcards_list:
-            self.current_flashcard = self.flashcards_list.pop(0)
-            self.question_label.config(text=f"Q: {self.current_flashcard[0]}")
-            self.answer_label.config(text="")
-        else:
-            messagebox.showinfo("Info", "You have reviewed all flashcards!")
-            self.back_to_menu()
+        if not self.flashcards_list:
+            QMessageBox.information(self, "Done", "You have reviewed all flashcards!")
+            return
+
+        self.current_flashcard = self.flashcards_list.pop(0)
+        question, _ = self.current_flashcard
+
+        self.display_flashcard(question)
+
+    def display_flashcard(self, question):
+        """Display the flashcard with buttons to show answer or delete."""
+        flashcard_dialog = QMessageBox(self)
+        flashcard_dialog.setWindowTitle("Flashcard")
+        flashcard_dialog.setText(f"Q: {question}")
+
+        # Add buttons
+        delete_button = flashcard_dialog.addButton("Delete Flashcard", QMessageBox.ActionRole)
+        yes_button = flashcard_dialog.addButton("Show Answer", QMessageBox.YesRole)
+        no_button = flashcard_dialog.addButton("Skip", QMessageBox.NoRole)
+
+        # Execute dialog and handle results
+        flashcard_dialog.exec_()
+
+        if flashcard_dialog.clickedButton() == delete_button:
+            self.delete_flashcard()
+        elif flashcard_dialog.clickedButton() == yes_button:
+            self.show_answer()
+        elif flashcard_dialog.clickedButton() == no_button:
+            self.show_next_flashcard()
 
     def show_answer(self):
         """Show the answer to the current flashcard."""
-        if self.current_flashcard:
-            self.answer_label.config(text=f"A: {self.current_flashcard[1]}")
+        if not self.current_flashcard:
+            return
+
+        _, answer = self.current_flashcard
+        QMessageBox.information(self, "Answer", f"A: {answer}")
+        self.show_next_flashcard()
 
     def delete_flashcard(self):
         """Delete the current flashcard."""
@@ -186,52 +157,41 @@ class FlashcardApp:
             question = self.current_flashcard[0]
             del self.flashcards[question]
             save_flashcards(self.flashcards)
-            messagebox.showinfo("Success", f"Flashcard '{question}' deleted.")
-            self.next_flashcard()  # Show the next flashcard after deletion
+            QMessageBox.information(self, "Success", f"Flashcard '{question}' deleted.")
+            self.show_next_flashcard()
 
     def delete_all_flashcards(self):
         """Delete all flashcards."""
-        confirm = messagebox.askyesno("Confirm Delete", "Are you sure you want to delete all flashcards?")
-        if confirm:
+        confirm = QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete all flashcards?",
+                                       QMessageBox.Yes | QMessageBox.No)
+        if confirm == QMessageBox.Yes:
             self.flashcards.clear()
             save_flashcards(self.flashcards)
-            messagebox.showinfo("Success", "All flashcards have been deleted.")
-            self.back_to_menu()  # Go back to the main menu after deletion
+            QMessageBox.information(self, "Success", "All flashcards have been deleted.")
 
     def open_generate_flashcards(self):
-        """Open the screen for generating flashcards with Gemini."""
-        self.menu_frame.pack_forget()
-        self.generate_frame.pack()
-
-    def generate_flashcards_from_gemini(self):
-        """Generate flashcards using Gemini and add them to the collection."""
-        topic = self.topic_entry.get().strip()
-        num_questions = self.num_questions_entry.get().strip()
-
-        if not topic or not num_questions.isdigit():
-            messagebox.showerror("Error", "Please provide a valid topic and number of questions.")
+        """Open a dialog to generate flashcards."""
+        topic, ok = QInputDialog.getText(self, "Generate Flashcards", "Enter the topic:")
+        if not ok or not topic.strip():
             return
 
-        num_questions = int(num_questions)
-        messagebox.showinfo("Info", "Generating flashcards. This may take a moment...")
-        generated_flashcards = generate_flashcards_with_gemini(topic, num_questions)
+        num_questions, ok = QInputDialog.getInt(self, "Generate Flashcards", "Enter the number of questions:", 5, 1, 20)
+        if not ok:
+            return
+
+        QMessageBox.information(self, "Generating", "Generating flashcards... Please wait.")
+        generated_flashcards = generate_flashcards_with_gemini(topic.strip(), num_questions)
 
         if generated_flashcards:
             self.flashcards.update(generated_flashcards)
             save_flashcards(self.flashcards)
-            messagebox.showinfo("Success", f"{len(generated_flashcards)} flashcards generated and saved!")
+            QMessageBox.information(self, "Success", f"{len(generated_flashcards)} flashcards generated and saved!")
         else:
-            messagebox.showerror("Error", "Failed to generate flashcards. Please try again.")
-        self.back_to_menu()
+            QMessageBox.warning(self, "Error", "Failed to generate flashcards. Please try again.")
 
-    def back_to_menu(self):
-        """Return to the main menu."""
-        self.add_frame.pack_forget()
-        self.review_frame.pack_forget()
-        self.generate_frame.pack_forget()
-        self.menu_frame.pack()
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = FlashcardApp(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+    window = FlashcardApp()
+    window.show()
+    sys.exit(app.exec_())
